@@ -199,7 +199,7 @@ static void lsm6dso_handle_interrupt(const struct device *dev)
 #endif
 	}
 
-	gpio_pin_interrupt_configure(lsm6dso->gpio, cfg->int_gpio_pin,
+	gpio_pin_interrupt_configure(cfg->gpio_drdy.port, cfg->gpio_drdy.pin,
 				     GPIO_INT_EDGE_TO_ACTIVE);
 }
 
@@ -212,7 +212,7 @@ static void lsm6dso_gpio_callback(const struct device *dev,
 
 	ARG_UNUSED(pins);
 
-	gpio_pin_interrupt_configure(lsm6dso->gpio, cfg->int_gpio_pin,
+	gpio_pin_interrupt_configure(cfg->gpio_drdy.port, cfg->gpio_drdy.pin,
 				     GPIO_INT_DISABLE);
 
 #if defined(CONFIG_LSM6DSO_TRIGGER_OWN_THREAD)
@@ -249,10 +249,8 @@ int lsm6dso_init_interrupt(const struct device *dev)
 	int ret;
 
 	/* setup data ready gpio interrupt (INT1 or INT2) */
-	lsm6dso->gpio = device_get_binding(cfg->int_gpio_port);
-	if (lsm6dso->gpio == NULL) {
-		LOG_DBG("Cannot get pointer to %s device",
-			    cfg->int_gpio_port);
+	if (!device_is_ready(cfg->gpio_drdy.port)) {
+		LOG_ERR("Cannot get pointer to drdy_gpio device");
 		return -EINVAL;
 	}
 
@@ -268,8 +266,8 @@ int lsm6dso_init_interrupt(const struct device *dev)
 	lsm6dso->work.handler = lsm6dso_work_cb;
 #endif /* CONFIG_LSM6DSO_TRIGGER_OWN_THREAD */
 
-	ret = gpio_pin_configure(lsm6dso->gpio, cfg->int_gpio_pin,
-				 GPIO_INPUT | cfg->int_gpio_flags);
+	ret = gpio_pin_configure(cfg->gpio_drdy.port, cfg->gpio_drdy.pin,
+				 GPIO_INPUT | cfg->gpio_drdy.dt_flags);
 	if (ret < 0) {
 		LOG_DBG("Could not configure gpio");
 		return ret;
@@ -277,9 +275,9 @@ int lsm6dso_init_interrupt(const struct device *dev)
 
 	gpio_init_callback(&lsm6dso->gpio_cb,
 			   lsm6dso_gpio_callback,
-			   BIT(cfg->int_gpio_pin));
+			   BIT(cfg->gpio_drdy.pin));
 
-	if (gpio_add_callback(lsm6dso->gpio, &lsm6dso->gpio_cb) < 0) {
+	if (gpio_add_callback(cfg->gpio_drdy.port, &lsm6dso->gpio_cb) < 0) {
 		LOG_DBG("Could not set gpio callback");
 		return -EIO;
 	}
@@ -291,6 +289,7 @@ int lsm6dso_init_interrupt(const struct device *dev)
 		return -EIO;
 	}
 
-	return gpio_pin_interrupt_configure(lsm6dso->gpio, cfg->int_gpio_pin,
+	return gpio_pin_interrupt_configure(cfg->gpio_drdy.port,
+					    cfg->gpio_drdy.pin,
 					    GPIO_INT_EDGE_TO_ACTIVE);
 }
