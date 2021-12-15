@@ -692,6 +692,21 @@ static int lsm6dso_init_chip(const struct device *dev)
 
 	k_busy_wait(100);
 
+	/* set accel power mode */
+	LOG_DBG("accel pm is %d", cfg->accel_pm);
+	switch (cfg->accel_pm) {
+	default:
+	case 0:
+		lsm6dso_xl_power_mode_set(ctx, LSM6DSO_HIGH_PERFORMANCE_MD);
+		break;
+	case 1:
+		lsm6dso_xl_power_mode_set(ctx, LSM6DSO_LOW_NORMAL_POWER_MD);
+		break;
+	case 2:
+		lsm6dso_xl_power_mode_set(ctx, LSM6DSO_ULTRA_LOW_POWER_MD);
+		break;
+	}
+
 	fs = cfg->accel_range;
 	LOG_DBG("accel range is %d", fs);
 	if (lsm6dso_accel_set_fs_raw(dev, fs) < 0) {
@@ -706,6 +721,18 @@ static int lsm6dso_init_chip(const struct device *dev)
 	if (lsm6dso_accel_set_odr_raw(dev, odr) < 0) {
 		LOG_ERR("failed to set accelerometer odr %d", odr);
 		return -EIO;
+	}
+
+	/* set gyro power mode */
+	LOG_DBG("gyro pm is %d", cfg->gyro_pm);
+	switch (cfg->gyro_pm) {
+	default:
+	case 0:
+		lsm6dso_gy_power_mode_set(ctx, LSM6DSO_GY_HIGH_PERFORMANCE);
+		break;
+	case 1:
+		lsm6dso_gy_power_mode_set(ctx, LSM6DSO_GY_NORMAL);
+		break;
 	}
 
 	fs = cfg->gyro_range;
@@ -822,8 +849,10 @@ static int lsm6dso_init(const struct device *dev)
 					   0),				\
 		.bus_init = lsm6dso_spi_init,				\
 		},							\
+		.accel_pm = DT_INST_PROP(inst, accel_pm),		\
 		.accel_odr = DT_INST_PROP(inst, accel_odr),		\
 		.accel_range = DT_INST_PROP(inst, accel_range),		\
+		.gyro_pm = DT_INST_PROP(inst, gyro_pm),			\
 		.gyro_odr = DT_INST_PROP(inst, gyro_odr),		\
 		.gyro_range = DT_INST_PROP(inst, gyro_range),		\
 		COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, irq_gpios),	\
@@ -835,12 +864,14 @@ static int lsm6dso_init(const struct device *dev)
  */
 
 #define LSM6DSO_CONFIG_I2C(inst)					\
-	{								\
+	{		
 		.stmemsc.bus = DEVICE_DT_GET(DT_INST_BUS(inst)),	\
 		.stmemsc.bus_cfg.i2c_slv_addr = DT_INST_REG_ADDR(inst),	\
 		.bus_init = lsm6dso_i2c_init,				\
+		.accel_pm = DT_INST_PROP(inst, accel_pm),		\
 		.accel_odr = DT_INST_PROP(inst, accel_odr),		\
 		.accel_range = DT_INST_PROP(inst, accel_range),		\
+		.gyro_pm = DT_INST_PROP(inst, gyro_pm),			\
 		.gyro_odr = DT_INST_PROP(inst, gyro_odr),		\
 		.gyro_range = DT_INST_PROP(inst, gyro_range),		\
 		COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, irq_gpios),	\
