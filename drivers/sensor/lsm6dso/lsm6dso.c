@@ -697,13 +697,13 @@ static int lsm6dso_init_chip(const struct device *dev)
 	switch (cfg->accel_pm) {
 	default:
 	case 0:
-		lsm6dso_xl_power_mode_set(ctx, LSM6DSO_HIGH_PERFORMANCE_MD);
+		lsm6dso_xl_power_mode_set(lsm6dso->ctx, LSM6DSO_HIGH_PERFORMANCE_MD);
 		break;
 	case 1:
-		lsm6dso_xl_power_mode_set(ctx, LSM6DSO_LOW_NORMAL_POWER_MD);
+		lsm6dso_xl_power_mode_set(lsm6dso->ctx, LSM6DSO_LOW_NORMAL_POWER_MD);
 		break;
 	case 2:
-		lsm6dso_xl_power_mode_set(ctx, LSM6DSO_ULTRA_LOW_POWER_MD);
+		lsm6dso_xl_power_mode_set(lsm6dso->ctx, LSM6DSO_ULTRA_LOW_POWER_MD);
 		break;
 	}
 
@@ -728,10 +728,10 @@ static int lsm6dso_init_chip(const struct device *dev)
 	switch (cfg->gyro_pm) {
 	default:
 	case 0:
-		lsm6dso_gy_power_mode_set(ctx, LSM6DSO_GY_HIGH_PERFORMANCE);
+		lsm6dso_gy_power_mode_set(lsm6dso->ctx, LSM6DSO_GY_HIGH_PERFORMANCE);
 		break;
 	case 1:
-		lsm6dso_gy_power_mode_set(ctx, LSM6DSO_GY_NORMAL);
+		lsm6dso_gy_power_mode_set(lsm6dso->ctx, LSM6DSO_GY_NORMAL);
 		break;
 	}
 
@@ -864,7 +864,7 @@ static int lsm6dso_init(const struct device *dev)
  */
 
 #define LSM6DSO_CONFIG_I2C(inst)					\
-	{		
+	{	\
 		.stmemsc.bus = DEVICE_DT_GET(DT_INST_BUS(inst)),	\
 		.stmemsc.bus_cfg.i2c_slv_addr = DT_INST_REG_ADDR(inst),	\
 		.bus_init = lsm6dso_i2c_init,				\
