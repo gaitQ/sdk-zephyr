@@ -64,6 +64,11 @@ struct lsm6dso_config {
 	uint8_t int_pin;
 	bool trig_enabled;
 #endif /* CONFIG_LSM6DSO_TRIGGER */
+#ifdef CONFIG_LSM6DSO_ENABLE_FIFO
+	uint16_t batch_cnt_thr;
+	uint8_t accel_bdr;
+	uint8_t gyro_bdr;
+#endif /* CONFIG_LSM6DSO_ENABLE_FIFO */
 };
 
 union samples {
@@ -112,6 +117,9 @@ struct lsm6dso_data {
 	const struct sensor_trigger *trig_drdy_gyr;
 	sensor_trigger_handler_t handler_drdy_temp;
 	const struct sensor_trigger *trig_drdy_temp;
+#if defined(CONFIG_LSM6DSO_ENABLE_FIFO)
+	sensor_trigger_handler_t handler_fifo_bdr_cnt;
+#endif
 
 #if defined(CONFIG_LSM6DSO_TRIGGER_OWN_THREAD)
 	K_KERNEL_STACK_MEMBER(thread_stack, CONFIG_LSM6DSO_THREAD_STACK_SIZE);
