@@ -15,6 +15,7 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/logging/log.h>
 
+#include <zephyr/drivers/sensor/lsm6dso.h>
 #include "lsm6dso.h"
 
 LOG_MODULE_DECLARE(LSM6DSO, CONFIG_SENSOR_LOG_LEVEL);
@@ -118,6 +119,37 @@ static int lsm6dso_enable_g_int(const struct device *dev, int enable)
 	}
 }
 
+#if defined(CONFIG_LSM6DSO_ENABLE_FIFO)
+/**
+ * lsm6dso_enable_fifo_bdr_cnt_int - BDR counter threshold enable selected
+ * int pin to generate interrupt
+ */
+static int lsm6dso_enable_fifo_bdr_cnt_int(const struct device *dev, int enable)
+{
+	const struct lsm6dso_config *cfg = dev->config;
+	stmdev_ctx_t *ctx = (stmdev_ctx_t *)&cfg->ctx;
+
+	/* set interrupt */
+	if (cfg->int_pin == 1) {
+		lsm6dso_int1_ctrl_t int1_ctrl;
+
+		lsm6dso_read_reg(ctx, LSM6DSO_INT1_CTRL,
+				 (uint8_t *)&int1_ctrl, 1);
+		int1_ctrl.int1_cnt_bdr = enable;
+		return lsm6dso_write_reg(ctx, LSM6DSO_INT1_CTRL,
+					 (uint8_t *)&int1_ctrl, 1);
+	} else {
+		lsm6dso_int2_ctrl_t int2_ctrl;
+
+		lsm6dso_read_reg(ctx, LSM6DSO_INT2_CTRL,
+				 (uint8_t *)&int2_ctrl, 1);
+		int2_ctrl.int2_cnt_bdr = enable;
+		return lsm6dso_write_reg(ctx, LSM6DSO_INT2_CTRL,
+					 (uint8_t *)&int2_ctrl, 1);
+	}
+}
+#endif
+
 /**
  * lsm6dso_trigger_set - link external trigger to event data ready
  */
@@ -127,6 +159,9 @@ int lsm6dso_trigger_set(const struct device *dev,
 {
 	const struct lsm6dso_config *cfg = dev->config;
 	struct lsm6dso_data *lsm6dso = dev->data;
+#if defined(CONFIG_LSM6DSO_ENABLE_FIFO)
+	stmdev_ctx_t *ctx = (stmdev_ctx_t *)&cfg->ctx;
+#endif
 
 	if (!cfg->trig_enabled) {
 		LOG_ERR("trigger_set op not supported");
@@ -134,21 +169,59 @@ int lsm6dso_trigger_set(const struct device *dev,
 	}
 
 	if (trig->chan == SENSOR_CHAN_ACCEL_XYZ) {
-		lsm6dso->handler_drdy_acc = handler;
-		lsm6dso->trig_drdy_acc = trig;
-		if (handler) {
-			return lsm6dso_enable_xl_int(dev, LSM6DSO_EN_BIT);
-		} else {
-			return lsm6dso_enable_xl_int(dev, LSM6DSO_DIS_BIT);
+		if (trig->type == SENSOR_TRIG_DATA_READY) {
+			lsm6dso->handler_drdy_acc = handler;
+			lsm6dso->trig_drdy_acc = trig;
+			if (handler) {
+				return lsm6dso_enable_xl_int(dev, LSM6DSO_EN_BIT);
+			} else {
+				return lsm6dso_enable_xl_int(dev, LSM6DSO_DIS_BIT);
+			}
 		}
+#if defined(CONFIG_LSM6DSO_ENABLE_FIFO)
+		else if ((int16_t)trig->type == SENSOR_TRIG_LSM6DSO_CNT_BDR) {
+			/* Clear FIFO data */
+			lsm6dso_fifo_mode_set(ctx, LSM6DSO_BYPASS_MODE);
+			lsm6dso_fifo_mode_set(ctx, LSM6DSO_FIFO_MODE);
+			/* FIFO BDR Counter threshold interrupt */
+			lsm6dso->handler_fifo_bdr_cnt = handler;
+			if (handler) {
+				if (lsm6dso_fifo_cnt_event_batch_set(ctx, LSM6DSO_XL_BATCH_EVENT)) {
+					return -EIO;
+				}
+				return lsm6dso_enable_fifo_bdr_cnt_int(dev, LSM6DSO_EN_BIT);
+			} else {
+				return lsm6dso_enable_fifo_bdr_cnt_int(dev, LSM6DSO_DIS_BIT);
+			}
+		}
+#endif
 	} else if (trig->chan == SENSOR_CHAN_GYRO_XYZ) {
-		lsm6dso->handler_drdy_gyr = handler;
-		lsm6dso->trig_drdy_gyr = trig;
-		if (handler) {
-			return lsm6dso_enable_g_int(dev, LSM6DSO_EN_BIT);
-		} else {
-			return lsm6dso_enable_g_int(dev, LSM6DSO_DIS_BIT);
+		if (trig->type == SENSOR_TRIG_DATA_READY) {
+			lsm6dso->handler_drdy_gyr = handler;
+			lsm6dso->trig_drdy_gyr = trig;
+			if (handler) {
+				return lsm6dso_enable_g_int(dev, LSM6DSO_EN_BIT);
+			} else {
+				return lsm6dso_enable_g_int(dev, LSM6DSO_DIS_BIT);
+			}
 		}
+#if defined(CONFIG_LSM6DSO_ENABLE_FIFO)
+		else if ((int16_t)trig->type == SENSOR_TRIG_LSM6DSO_CNT_BDR) {
+			/* Clear FIFO data */
+			lsm6dso_fifo_mode_set(ctx, LSM6DSO_BYPASS_MODE);
+			lsm6dso_fifo_mode_set(ctx, LSM6DSO_FIFO_MODE);
+			/* FIFO Threshold interrupt */
+			lsm6dso->handler_fifo_bdr_cnt = handler;
+			if (handler) {
+				if (lsm6dso_fifo_cnt_event_batch_set(ctx, LSM6DSO_GYRO_BATCH_EVENT)) {
+					return -EIO;
+				}
+				return lsm6dso_enable_fifo_bdr_cnt_int(dev, LSM6DSO_EN_BIT);
+			} else {
+				return lsm6dso_enable_fifo_bdr_cnt_int(dev, LSM6DSO_DIS_BIT);
+			}
+		}
+#endif
 	}
 #if defined(CONFIG_LSM6DSO_ENABLE_TEMP)
 	else if (trig->chan == SENSOR_CHAN_DIE_TEMP) {
@@ -172,21 +245,39 @@ int lsm6dso_trigger_set(const struct device *dev,
 static void lsm6dso_handle_interrupt(const struct device *dev)
 {
 	struct lsm6dso_data *lsm6dso = dev->data;
+#if defined(CONFIG_LSM6DSO_ENABLE_FIFO)
+	struct sensor_trigger bdr_cnt_trigger = {
+		.type = SENSOR_TRIG_LSM6DSO_CNT_BDR,
+	};
+#endif
 	const struct lsm6dso_config *cfg = dev->config;
 	stmdev_ctx_t *ctx = (stmdev_ctx_t *)&cfg->ctx;
 	lsm6dso_status_reg_t status;
+#if defined(CONFIG_LSM6DSO_ENABLE_FIFO)
+	lsm6dso_fifo_status2_t fifo_status2;
+#endif
 
 	while (1) {
 		if (lsm6dso_status_reg_get(ctx, &status) < 0) {
 			LOG_DBG("failed reading status reg");
 			return;
 		}
-
-		if ((status.xlda == 0) && (status.gda == 0)
-#if defined(CONFIG_LSM6DSO_ENABLE_TEMP)
-					&& (status.tda == 0)
+#if defined(CONFIG_LSM6DSO_ENABLE_FIFO)
+		if (lsm6dso_fifo_status_get(ctx, &fifo_status2) < 0) {
+			LOG_DBG("failed reading fifo status2 reg");
+			return;
+		}
 #endif
-					) {
+
+		if (((lsm6dso->handler_drdy_acc == NULL) || (status.xlda == 0))
+					&& ((lsm6dso->handler_drdy_gyr == NULL) || (status.gda == 0))
+#if defined(CONFIG_LSM6DSO_ENABLE_TEMP)
+					&& ((lsm6dso->handler_drdy_temp == NULL) || (status.tda == 0))
+#endif
+#if defined(CONFIG_LSM6DSO_ENABLE_FIFO)
+					&& ((lsm6dso->handler_fifo_bdr_cnt == NULL) || (fifo_status2.counter_bdr_ia == 0))
+#endif
+		) {
 			break;
 		}
 
@@ -197,6 +288,12 @@ static void lsm6dso_handle_interrupt(const struct device *dev)
 		if ((status.gda) && (lsm6dso->handler_drdy_gyr != NULL)) {
 			lsm6dso->handler_drdy_gyr(dev, lsm6dso->trig_drdy_gyr);
 		}
+
+#if defined(CONFIG_LSM6DSO_ENABLE_FIFO)
+		if ((fifo_status2.counter_bdr_ia) && (lsm6dso->handler_fifo_bdr_cnt != NULL)) {
+			lsm6dso->handler_fifo_bdr_cnt(dev, &bdr_cnt_trigger);
+		}
+#endif
 
 #if defined(CONFIG_LSM6DSO_ENABLE_TEMP)
 		if ((status.tda) && (lsm6dso->handler_drdy_temp != NULL)) {
