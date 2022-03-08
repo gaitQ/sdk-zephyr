@@ -313,7 +313,7 @@ static uint8_t get_io_capa(void)
 	if (bt_auth->passkey_entry) {
 		if (IS_ENABLED(CONFIG_BT_FIXED_PASSKEY) &&
 		    fixed_passkey != BT_PASSKEY_INVALID) {
-			return BT_SMP_IO_KEYBOARD_DISPLAY;
+			return BT_SMP_IO_DISPLAY_ONLY;
 		} else {
 			return BT_SMP_IO_KEYBOARD_ONLY;
 		}
