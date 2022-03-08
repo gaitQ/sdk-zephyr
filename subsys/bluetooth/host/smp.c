@@ -419,6 +419,11 @@ static uint8_t get_pair_method(struct bt_smp *smp, uint8_t remote_io)
 		return JUST_WORKS;
 	}
 
+	if (remote_io == BT_SMP_IO_DISPLAY_ONLY
+		&& get_io_capa(smp) == BT_SMP_IO_DISPLAY_ONLY) {
+			return PASSKEY_DISPLAY;
+	}
+
 	return gen_method_sc[remote_io][get_io_capa(smp)];
 #else
 	return JUST_WORKS;
