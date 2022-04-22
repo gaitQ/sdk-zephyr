@@ -360,31 +360,31 @@ static int lsm6dso_sample_fetch_fifo(const struct device *dev)
 	const struct lsm6dso_config *cfg = dev->config;
 	stmdev_ctx_t *ctx = (stmdev_ctx_t *)&cfg->ctx;
 	struct lsm6dso_data *data = dev->data;
-	uint8_t buff[6];
+	uint8_t fifo_buf[6];
 	uint16_t num_data_fifo;
 	lsm6dso_fifo_tag_t data_tag;
 
 	lsm6dso_fifo_data_level_get(ctx, &num_data_fifo);
 	for (int i = 0; i < num_data_fifo; i++) {
 		lsm6dso_fifo_sensor_tag_get(ctx, &data_tag);
-		if (lsm6dso_fifo_out_raw_get(ctx, buff) < 0) {
+		if (lsm6dso_fifo_out_raw_get(ctx, fifo_buf) < 0) {
 			LOG_DBG("Failed to read sample");
 			return -EIO;
 		}
 		if (data_tag == LSM6DSO_GYRO_NC_TAG) {
-			data->gyro[0] = (int16_t)buff[1];
-			data->gyro[0] = (data->gyro[0] * 256) + (int16_t)buff[0];
-			data->gyro[1] = (int16_t)buff[3];
-			data->gyro[1] = (data->gyro[1] * 256) + (int16_t)buff[2];
-			data->gyro[2] = (int16_t)buff[5];
-			data->gyro[2] = (data->gyro[2] * 256) + (int16_t)buff[4];
+			data->gyro[0] = (int16_t)fifo_buf[1];
+			data->gyro[0] = (data->gyro[0] * 256) + (int16_t)fifo_buf[0];
+			data->gyro[1] = (int16_t)fifo_buf[3];
+			data->gyro[1] = (data->gyro[1] * 256) + (int16_t)fifo_buf[2];
+			data->gyro[2] = (int16_t)fifo_buf[5];
+			data->gyro[2] = (data->gyro[2] * 256) + (int16_t)fifo_buf[4];
 		} else if (data_tag == LSM6DSO_XL_NC_TAG) {
-			data->acc[0] = (int16_t)buff[1];
-			data->acc[0] = (data->acc[0] * 256) + (int16_t)buff[0];
-			data->acc[1] = (int16_t)buff[3];
-			data->acc[1] = (data->acc[1] * 256) + (int16_t)buff[2];
-			data->acc[2] = (int16_t)buff[5];
-			data->acc[2] = (data->acc[2] * 256) + (int16_t)buff[4];
+			data->acc[0] = (int16_t)fifo_buf[1];
+			data->acc[0] = (data->acc[0] * 256) + (int16_t)fifo_buf[0];
+			data->acc[1] = (int16_t)fifo_buf[3];
+			data->acc[1] = (data->acc[1] * 256) + (int16_t)fifo_buf[2];
+			data->acc[2] = (int16_t)fifo_buf[5];
+			data->acc[2] = (data->acc[2] * 256) + (int16_t)fifo_buf[4];
 		} else {
 			LOG_WRN("Unhandled data: tag=%d", data_tag);
 		}
@@ -447,10 +447,10 @@ static int lsm6dso_sample_fetch(const struct device *dev,
 #else
 		lsm6dso_sample_fetch_accel(dev);
 		lsm6dso_sample_fetch_gyro(dev);
-#endif
 #if defined(CONFIG_LSM6DSO_ENABLE_TEMP)
 		lsm6dso_sample_fetch_temp(dev);
-#endif
+#endif	/* defined(CONFIG_LSM6DSO_ENABLE_TEMP) */
+#endif	/* defined(CONFIG_LSM6DSO_ENABLE_FIFO) */
 #if defined(CONFIG_LSM6DSO_SENSORHUB)
 		if (data->shub_inited) {
 			lsm6dso_sample_fetch_shub(dev);
@@ -767,6 +767,78 @@ static int lsm6dso_channel_get(const struct device *dev,
 	return 0;
 }
 
+static int lsm6dso_read(const struct device *dev,
+				    struct sensor_reading *buf, int size)
+{
+#if defined(CONFIG_LSM6DSO_ENABLE_FIFO)
+	const struct lsm6dso_config *cfg = dev->config;
+	stmdev_ctx_t *ctx = (stmdev_ctx_t *)&cfg->ctx;
+	struct lsm6dso_data *data = dev->data;
+	uint8_t fifo_buf[6];
+	uint16_t num_data_fifo;
+	lsm6dso_fifo_tag_t data_tag;
+	int cur_buf_element = 0;
+
+	lsm6dso_fifo_data_level_get(ctx, &num_data_fifo);
+
+	for (int i = 0; i < num_data_fifo; i++) {
+		// Stop if not enough space in buffer left
+		if ((cur_buf_element + 3) > size) {
+			break;
+		}
+
+		lsm6dso_fifo_sensor_tag_get(ctx, &data_tag);
+		if (lsm6dso_fifo_out_raw_get(ctx, fifo_buf) < 0) {
+			LOG_DBG("Failed to read sample");
+			return -EIO;
+		}
+
+		if (data_tag == LSM6DSO_GYRO_NC_TAG) {
+			data->gyro[0] = (int16_t)fifo_buf[1];
+			data->gyro[0] = (data->gyro[0] * 256) + (int16_t)fifo_buf[0];
+			lsm6dso_gyro_channel_get(SENSOR_CHAN_GYRO_X, &buf[cur_buf_element].value, data);
+			buf[cur_buf_element].channel = SENSOR_CHAN_GYRO_X;
+			cur_buf_element++;
+
+			data->gyro[1] = (int16_t)fifo_buf[3];
+			data->gyro[1] = (data->gyro[1] * 256) + (int16_t)fifo_buf[2];
+			lsm6dso_gyro_channel_get(SENSOR_CHAN_GYRO_Y, &buf[cur_buf_element].value, data);
+			buf[cur_buf_element].channel = SENSOR_CHAN_GYRO_Y;
+			cur_buf_element++;
+
+			data->gyro[2] = (int16_t)fifo_buf[5];
+			data->gyro[2] = (data->gyro[2] * 256) + (int16_t)fifo_buf[4];
+			lsm6dso_gyro_channel_get(SENSOR_CHAN_GYRO_Z, &buf[cur_buf_element].value, data);
+			buf[cur_buf_element].channel = SENSOR_CHAN_GYRO_Z;
+			cur_buf_element++;
+		} else if (data_tag == LSM6DSO_XL_NC_TAG) {
+			data->acc[0] = (int16_t)fifo_buf[1];
+			data->acc[0] = (data->acc[0] * 256) + (int16_t)fifo_buf[0];
+			lsm6dso_accel_channel_get(SENSOR_CHAN_ACCEL_X, &buf[cur_buf_element].value, data);
+			buf[cur_buf_element].channel = SENSOR_CHAN_ACCEL_X;
+			cur_buf_element++;
+
+			data->acc[1] = (int16_t)fifo_buf[3];
+			data->acc[1] = (data->acc[1] * 256) + (int16_t)fifo_buf[2];
+			lsm6dso_accel_channel_get(SENSOR_CHAN_ACCEL_Y, &buf[cur_buf_element].value, data);
+			buf[cur_buf_element].channel = SENSOR_CHAN_ACCEL_Y;
+			cur_buf_element++;
+
+			data->acc[2] = (int16_t)fifo_buf[5];
+			data->acc[2] = (data->acc[2] * 256) + (int16_t)fifo_buf[4];
+			lsm6dso_accel_channel_get(SENSOR_CHAN_ACCEL_Z, &buf[cur_buf_element].value, data);
+			buf[cur_buf_element].channel = SENSOR_CHAN_ACCEL_Z;
+			cur_buf_element++;
+		} else {
+			LOG_WRN("Unhandled data: tag=%d", data_tag);
+		}
+	}
+
+	return cur_buf_element;
+#endif
+	return -ENOTSUP;
+}
+
 static const struct sensor_driver_api lsm6dso_driver_api = {
 	.attr_set = lsm6dso_attr_set,
 #if CONFIG_LSM6DSO_TRIGGER
@@ -774,6 +846,7 @@ static const struct sensor_driver_api lsm6dso_driver_api = {
 #endif
 	.sample_fetch = lsm6dso_sample_fetch,
 	.channel_get = lsm6dso_channel_get,
+	.read = lsm6dso_read,
 };
 
 static int lsm6dso_init_chip(const struct device *dev)
