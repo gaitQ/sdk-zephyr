@@ -698,6 +698,20 @@ extern const struct sensor_decoder_api __sensor_default_decoder;
 /* The default sensor iodev API */
 extern const struct rtio_iodev_api __sensor_iodev_api;
 
+struct sensor_reading {
+    enum sensor_channel channel;
+    struct sensor_value value;
+};
+
+/**
+ * @typedef sensor_read_t
+ * @brief Callback API for getting generic reading from a sensor
+ *
+ * See sensor_read() for argument description
+ */
+typedef int (*sensor_read_t)(const struct device *dev,
+				    struct sensor_reading *buf, int size);
+
 __subsystem struct sensor_driver_api {
 	sensor_attr_set_t attr_set;
 	sensor_attr_get_t attr_get;
@@ -706,6 +720,7 @@ __subsystem struct sensor_driver_api {
 	sensor_channel_get_t channel_get;
 	sensor_get_decoder_t get_decoder;
 	sensor_submit_t submit;
+	sensor_read_t read;
 };
 
 /**
@@ -1133,6 +1148,30 @@ typedef void (*sensor_processing_callback_t)(int result, uint8_t *buf, uint32_t 
 void sensor_processing_with_callback(struct rtio *ctx, sensor_processing_callback_t cb);
 
 #endif /* defined(CONFIG_SENSOR_ASYNC_API) || defined(__DOXYGEN__) */
+
+/**
+ * @brief Get a reading from a sensor device
+ *
+ * Returns non-negative integer of number of read data points (can be 0),
+ * negative indicates an error
+ * 
+ * @param dev Pointer to the sensor device
+ * @param buf Pointer to buffer to write read data to
+ * @param size Size of buffer
+ *
+ * @return number of read data points if successful, negative errno code if failure.
+ */
+__syscall int sensor_read(const struct device *dev,
+				    struct sensor_reading *buf, int size);
+
+static inline int z_impl_sensor_read(const struct device *dev,
+				    struct sensor_reading *buf, int size)
+{
+	const struct sensor_driver_api *api =
+		(const struct sensor_driver_api *)dev->api;
+
+	return api->read(dev, buf, size);
+}
 
 /**
  * @brief The value of gravitational constant in micro m/s^2.
