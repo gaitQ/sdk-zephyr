@@ -57,3 +57,13 @@ static inline int z_vrfy_sensor_channel_get(const struct device *dev,
 					 (struct sensor_value *)val);
 }
 #include <syscalls/sensor_channel_get_mrsh.c>
+
+static inline int z_vrfy_sensor_read(const struct device *dev,
+				    struct sensor_reading *buf, int size)
+{
+	Z_OOPS(Z_SYSCALL_DRIVER_SENSOR(dev, read));
+	Z_OOPS(Z_SYSCALL_MEMORY_WRITE(buf, sizeof(struct sensor_reading)));
+	return z_impl_sensor_read((const struct device *)dev,
+				    (struct sensor_reading *)buf, size);
+}
+#include <syscalls/sensor_read_mrsh.c>
