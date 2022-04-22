@@ -394,12 +394,27 @@ typedef int (*sensor_channel_get_t)(const struct device *dev,
 				    enum sensor_channel chan,
 				    struct sensor_value *val);
 
+struct sensor_reading {
+    enum sensor_channel channel;
+    struct sensor_value value;
+};
+
+/**
+ * @typedef sensor_read_t
+ * @brief Callback API for getting generic reading from a sensor
+ *
+ * See sensor_read() for argument description
+ */
+typedef int (*sensor_read_t)(const struct device *dev,
+				    struct sensor_reading *buf, int size);
+
 __subsystem struct sensor_driver_api {
 	sensor_attr_set_t attr_set;
 	sensor_attr_get_t attr_get;
 	sensor_trigger_set_t trigger_set;
 	sensor_sample_fetch_t sample_fetch;
 	sensor_channel_get_t channel_get;
+	sensor_read_t read;
 };
 
 /**
@@ -596,6 +611,30 @@ static inline int z_impl_sensor_channel_get(const struct device *dev,
 		(const struct sensor_driver_api *)dev->api;
 
 	return api->channel_get(dev, chan, val);
+}
+
+/**
+ * @brief Get a reading from a sensor device
+ *
+ * Returns non-negative integer of number of read data points (can be 0),
+ * negative indicates an error
+ * 
+ * @param dev Pointer to the sensor device
+ * @param buf Pointer to buffer to write read data to
+ * @param size Size of buffer
+ *
+ * @return number of read data points if successful, negative errno code if failure.
+ */
+__syscall int sensor_read(const struct device *dev,
+				    struct sensor_reading *buf, int size);
+
+static inline int z_impl_sensor_read(const struct device *dev,
+				    struct sensor_reading *buf, int size)
+{
+	const struct sensor_driver_api *api =
+		(const struct sensor_driver_api *)dev->api;
+
+	return api->read(dev, buf, size);
 }
 
 /**
