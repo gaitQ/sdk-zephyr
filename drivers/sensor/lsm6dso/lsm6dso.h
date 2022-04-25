@@ -59,6 +59,7 @@ struct lsm6dso_config {
 	uint8_t gyro_odr;
 	uint8_t gyro_range;
 #ifdef CONFIG_LSM6DSO_TRIGGER
+	bool fifo_active;
 	const struct gpio_dt_spec gpio_intr;
 	uint8_t int_pin;
 	bool trig_enabled;
