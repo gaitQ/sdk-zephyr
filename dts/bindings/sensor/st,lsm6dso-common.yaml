@@ -115,6 +115,12 @@ properties:
       Selects the pulsed mode for data-ready interrupt when enabled,
       and the latched mode when disabled.
 
+  fifo-active:
+    type: boolean
+    required: false
+    description: |
+      Enable FIFO buffer
+
   accel-bdr:
     type: int
     required: false

@@ -68,6 +68,7 @@ struct lsm6dso_config {
 	uint16_t batch_cnt_thr;
 	uint8_t accel_bdr;
 	uint8_t gyro_bdr;
+	uint8_t fifo_active;
 #endif /* CONFIG_LSM6DSO_ENABLE_FIFO */
 };
 
