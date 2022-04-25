@@ -425,6 +425,9 @@ static int lsm6dso_sample_fetch_shub(const struct device *dev)
 static int lsm6dso_sample_fetch(const struct device *dev,
 				enum sensor_channel chan)
 {
+#if defined(CONFIG_LSM6DSO_ENABLE_FIFO)
+	const struct lsm6dso_config *cfg = dev->config;
+#endif /* CONFIG_LSM6DSO_ENABLE_FIFO */
 #if defined(CONFIG_LSM6DSO_SENSORHUB)
 	struct lsm6dso_data *data = dev->data;
 #endif /* CONFIG_LSM6DSO_SENSORHUB */
@@ -443,19 +446,22 @@ static int lsm6dso_sample_fetch(const struct device *dev,
 #endif
 	case SENSOR_CHAN_ALL:
 #if defined(CONFIG_LSM6DSO_ENABLE_FIFO)
-		lsm6dso_sample_fetch_fifo(dev);
-#else
-		lsm6dso_sample_fetch_accel(dev);
-		lsm6dso_sample_fetch_gyro(dev);
-#if defined(CONFIG_LSM6DSO_ENABLE_TEMP)
-		lsm6dso_sample_fetch_temp(dev);
-#endif	/* defined(CONFIG_LSM6DSO_ENABLE_TEMP) */
-#endif	/* defined(CONFIG_LSM6DSO_ENABLE_FIFO) */
-#if defined(CONFIG_LSM6DSO_SENSORHUB)
-		if (data->shub_inited) {
-			lsm6dso_sample_fetch_shub(dev);
-		}
+		if (cfg->fifo_active) {
+			lsm6dso_sample_fetch_fifo(dev);
+		} else
 #endif
+		{
+			lsm6dso_sample_fetch_accel(dev);
+			lsm6dso_sample_fetch_gyro(dev);
+#if defined(CONFIG_LSM6DSO_ENABLE_TEMP)
+			lsm6dso_sample_fetch_temp(dev);
+#endif  /* defined(CONFIG_LSM6DSO_ENABLE_TEMP) */
+#if defined(CONFIG_LSM6DSO_SENSORHUB)
+			if (data->shub_inited) {
+				lsm6dso_sample_fetch_shub(dev);
+			}
+#endif
+		}
 		break;
 	default:
 		return -ENOTSUP;
@@ -768,73 +774,83 @@ static int lsm6dso_channel_get(const struct device *dev,
 }
 
 static int lsm6dso_read(const struct device *dev,
-				    struct sensor_reading *buf, int size)
+			struct sensor_reading *buf, int size)
 {
 #if defined(CONFIG_LSM6DSO_ENABLE_FIFO)
 	const struct lsm6dso_config *cfg = dev->config;
-	stmdev_ctx_t *ctx = (stmdev_ctx_t *)&cfg->ctx;
-	struct lsm6dso_data *data = dev->data;
-	uint8_t fifo_buf[6];
-	uint16_t num_data_fifo;
-	lsm6dso_fifo_tag_t data_tag;
-	int cur_buf_element = 0;
 
-	lsm6dso_fifo_data_level_get(ctx, &num_data_fifo);
+	if (cfg->fifo_active) {
+		const struct lsm6dso_config *cfg = dev->config;
+		stmdev_ctx_t *ctx = (stmdev_ctx_t *)&cfg->ctx;
+		struct lsm6dso_data *data = dev->data;
+		uint8_t fifo_buf[6];
+		uint16_t num_data_fifo;
+		lsm6dso_fifo_tag_t data_tag;
+		int cur_buf_element = 0;
 
-	for (int i = 0; i < num_data_fifo; i++) {
-		// Stop if not enough space in buffer left
-		if ((cur_buf_element + 3) > size) {
-			break;
+		lsm6dso_fifo_data_level_get(ctx, &num_data_fifo);
+
+		for (int i = 0; i < num_data_fifo; i++) {
+			/* Stop if not enough space in buffer left */
+			if ((cur_buf_element + 3) > size) {
+				break;
+			}
+
+			lsm6dso_fifo_sensor_tag_get(ctx, &data_tag);
+			if (lsm6dso_fifo_out_raw_get(ctx, fifo_buf) < 0) {
+				LOG_DBG("Failed to read sample");
+				return -EIO;
+			}
+
+			if (data_tag == LSM6DSO_GYRO_NC_TAG) {
+				data->gyro[0] = (int16_t)fifo_buf[1];
+				data->gyro[0] = (data->gyro[0] * 256) + (int16_t)fifo_buf[0];
+				lsm6dso_gyro_channel_get(SENSOR_CHAN_GYRO_X,
+							 &buf[cur_buf_element].value, data);
+				buf[cur_buf_element].channel = SENSOR_CHAN_GYRO_X;
+				cur_buf_element++;
+
+				data->gyro[1] = (int16_t)fifo_buf[3];
+				data->gyro[1] = (data->gyro[1] * 256) + (int16_t)fifo_buf[2];
+				lsm6dso_gyro_channel_get(SENSOR_CHAN_GYRO_Y,
+							 &buf[cur_buf_element].value, data);
+				buf[cur_buf_element].channel = SENSOR_CHAN_GYRO_Y;
+				cur_buf_element++;
+
+				data->gyro[2] = (int16_t)fifo_buf[5];
+				data->gyro[2] = (data->gyro[2] * 256) + (int16_t)fifo_buf[4];
+				lsm6dso_gyro_channel_get(SENSOR_CHAN_GYRO_Z,
+							 &buf[cur_buf_element].value, data);
+				buf[cur_buf_element].channel = SENSOR_CHAN_GYRO_Z;
+				cur_buf_element++;
+			} else if (data_tag == LSM6DSO_XL_NC_TAG) {
+				data->acc[0] = (int16_t)fifo_buf[1];
+				data->acc[0] = (data->acc[0] * 256) + (int16_t)fifo_buf[0];
+				lsm6dso_accel_channel_get(SENSOR_CHAN_ACCEL_X,
+							  &buf[cur_buf_element].value, data);
+				buf[cur_buf_element].channel = SENSOR_CHAN_ACCEL_X;
+				cur_buf_element++;
+
+				data->acc[1] = (int16_t)fifo_buf[3];
+				data->acc[1] = (data->acc[1] * 256) + (int16_t)fifo_buf[2];
+				lsm6dso_accel_channel_get(SENSOR_CHAN_ACCEL_Y,
+							  &buf[cur_buf_element].value, data);
+				buf[cur_buf_element].channel = SENSOR_CHAN_ACCEL_Y;
+				cur_buf_element++;
+
+				data->acc[2] = (int16_t)fifo_buf[5];
+				data->acc[2] = (data->acc[2] * 256) + (int16_t)fifo_buf[4];
+				lsm6dso_accel_channel_get(SENSOR_CHAN_ACCEL_Z,
+							  &buf[cur_buf_element].value, data);
+				buf[cur_buf_element].channel = SENSOR_CHAN_ACCEL_Z;
+				cur_buf_element++;
+			} else {
+				LOG_WRN("Unhandled data: tag=%d", data_tag);
+			}
 		}
 
-		lsm6dso_fifo_sensor_tag_get(ctx, &data_tag);
-		if (lsm6dso_fifo_out_raw_get(ctx, fifo_buf) < 0) {
-			LOG_DBG("Failed to read sample");
-			return -EIO;
-		}
-
-		if (data_tag == LSM6DSO_GYRO_NC_TAG) {
-			data->gyro[0] = (int16_t)fifo_buf[1];
-			data->gyro[0] = (data->gyro[0] * 256) + (int16_t)fifo_buf[0];
-			lsm6dso_gyro_channel_get(SENSOR_CHAN_GYRO_X, &buf[cur_buf_element].value, data);
-			buf[cur_buf_element].channel = SENSOR_CHAN_GYRO_X;
-			cur_buf_element++;
-
-			data->gyro[1] = (int16_t)fifo_buf[3];
-			data->gyro[1] = (data->gyro[1] * 256) + (int16_t)fifo_buf[2];
-			lsm6dso_gyro_channel_get(SENSOR_CHAN_GYRO_Y, &buf[cur_buf_element].value, data);
-			buf[cur_buf_element].channel = SENSOR_CHAN_GYRO_Y;
-			cur_buf_element++;
-
-			data->gyro[2] = (int16_t)fifo_buf[5];
-			data->gyro[2] = (data->gyro[2] * 256) + (int16_t)fifo_buf[4];
-			lsm6dso_gyro_channel_get(SENSOR_CHAN_GYRO_Z, &buf[cur_buf_element].value, data);
-			buf[cur_buf_element].channel = SENSOR_CHAN_GYRO_Z;
-			cur_buf_element++;
-		} else if (data_tag == LSM6DSO_XL_NC_TAG) {
-			data->acc[0] = (int16_t)fifo_buf[1];
-			data->acc[0] = (data->acc[0] * 256) + (int16_t)fifo_buf[0];
-			lsm6dso_accel_channel_get(SENSOR_CHAN_ACCEL_X, &buf[cur_buf_element].value, data);
-			buf[cur_buf_element].channel = SENSOR_CHAN_ACCEL_X;
-			cur_buf_element++;
-
-			data->acc[1] = (int16_t)fifo_buf[3];
-			data->acc[1] = (data->acc[1] * 256) + (int16_t)fifo_buf[2];
-			lsm6dso_accel_channel_get(SENSOR_CHAN_ACCEL_Y, &buf[cur_buf_element].value, data);
-			buf[cur_buf_element].channel = SENSOR_CHAN_ACCEL_Y;
-			cur_buf_element++;
-
-			data->acc[2] = (int16_t)fifo_buf[5];
-			data->acc[2] = (data->acc[2] * 256) + (int16_t)fifo_buf[4];
-			lsm6dso_accel_channel_get(SENSOR_CHAN_ACCEL_Z, &buf[cur_buf_element].value, data);
-			buf[cur_buf_element].channel = SENSOR_CHAN_ACCEL_Z;
-			cur_buf_element++;
-		} else {
-			LOG_WRN("Unhandled data: tag=%d", data_tag);
-		}
+		return cur_buf_element;
 	}
-
-	return cur_buf_element;
 #endif
 	return -ENOTSUP;
 }
@@ -963,27 +979,34 @@ static int lsm6dso_init_chip(const struct device *dev)
 		LOG_ERR("failed to set gyroscope odr %d", odr);
 		return -EIO;
 	}
-
 #if defined(CONFIG_LSM6DSO_ENABLE_FIFO)
-	LOG_DBG("Setting FIFO mode");
-	if (lsm6dso_fifo_mode_set(ctx, LSM6DSO_FIFO_MODE) < 0) {
-		LOG_DBG("failed to set FIFO mode");
-		return -EIO;
-	}
+	if (cfg->fifo_active) {
+		LOG_DBG("Setting FIFO mode");
+		if (lsm6dso_fifo_mode_set(ctx, LSM6DSO_FIFO_MODE) < 0) {
+			LOG_DBG("failed to set FIFO mode");
+			return -EIO;
+		}
 
-	if (lsm6dso_batch_counter_threshold_set(ctx, cfg->batch_cnt_thr)) {
-		LOG_DBG("Setting FIFO batch count threshold Failed");
-		return -EIO;
-	}
+		if (lsm6dso_batch_counter_threshold_set(ctx, cfg->batch_cnt_thr)) {
+			LOG_DBG("Setting FIFO batch count threshold Failed");
+			return -EIO;
+		}
 
-	if (lsm6dso_fifo_xl_batch_set(ctx, cfg->accel_bdr)) {
-		LOG_DBG("Enable Accel FIFO batch mode Failed");
-		return -EIO;
-	}
+		if (lsm6dso_fifo_xl_batch_set(ctx, cfg->accel_bdr)) {
+			LOG_DBG("Enable Accel FIFO batch mode Failed");
+			return -EIO;
+		}
 
-	if (lsm6dso_fifo_gy_batch_set(ctx, cfg->gyro_bdr)) {
-		LOG_DBG("Enable Gyro FIFO batch mode Failed");
-		return -EIO;
+		if (lsm6dso_fifo_gy_batch_set(ctx, cfg->gyro_bdr)) {
+			LOG_DBG("Enable Gyro FIFO batch mode Failed");
+			return -EIO;
+		}
+	} else {
+		/* Set FIFO bypass mode */
+		if (lsm6dso_fifo_mode_set(ctx, LSM6DSO_BYPASS_MODE) < 0) {
+			LOG_DBG("failed to set FIFO mode");
+			return -EIO;
+		}
 	}
 #else
 	/* Set FIFO bypass mode */
@@ -991,7 +1014,7 @@ static int lsm6dso_init_chip(const struct device *dev)
 		LOG_DBG("failed to set FIFO mode");
 		return -EIO;
 	}
-#endif
+#endif /* CONFIG_LSM6DSO_ENABLE_FIFO */
 
 	if (lsm6dso_block_data_update_set(ctx, 1) < 0) {
 		LOG_DBG("failed to set BDU mode");
@@ -1070,6 +1093,7 @@ static int lsm6dso_init(const struct device *dev)
 
 #ifdef CONFIG_LSM6DSO_ENABLE_FIFO
 #define LSM6DSO_CFG_FIFO(inst)						\
+	.fifo_active = DT_INST_PROP(inst, fifo_active),	   		\
 	.batch_cnt_thr = DT_INST_PROP(inst, batch_cnt_thr),		\
 	.accel_bdr = DT_INST_PROP(inst, accel_bdr),			\
 	.gyro_bdr = DT_INST_PROP(inst, gyro_bdr),
