@@ -413,7 +413,7 @@ static void memoryRead(void)
 	/* we read an entire block */
 	if (!(addr % BLOCK_SIZE)) {
 		thread_op = THREAD_OP_READ_QUEUED;
-		LOG_DBG("Signal thread for %d", (addr/BLOCK_SIZE));
+		LOG_DBG("Signal thread for %lld", (addr/BLOCK_SIZE));
 		k_sem_give(&disk_wait_sem);
 		return;
 	}
@@ -645,16 +645,16 @@ static void memoryVerify(uint8_t *buf, uint16_t size)
 
 	/* beginning of a new block -> load a whole block in RAM */
 	if (!(addr % BLOCK_SIZE)) {
-		LOG_DBG("Disk READ sector %d", addr/BLOCK_SIZE);
+		LOG_DBG("Disk READ sector %lld", addr/BLOCK_SIZE);
 		if (disk_access_read(disk_pdrv, page, addr/BLOCK_SIZE, 1)) {
-			LOG_ERR("---- Disk Read Error %d", addr/BLOCK_SIZE);
+			LOG_ERR("---- Disk Read Error %lld", addr/BLOCK_SIZE);
 		}
 	}
 
 	/* info are in RAM -> no need to re-read memory */
 	for (n = 0U; n < size; n++) {
 		if (page[addr%BLOCK_SIZE + n] != buf[n]) {
-			LOG_DBG("Mismatch sector %d offset %d",
+			LOG_DBG("Mismatch sector %lld offset %d",
 				addr/BLOCK_SIZE, n);
 			memOK = false;
 			break;
@@ -690,7 +690,7 @@ static void memoryWrite(uint8_t *buf, uint16_t size)
 	if ((addr % BLOCK_SIZE) + size >= BLOCK_SIZE) {
 		if (!(disk_access_status(disk_pdrv) &
 					DISK_STATUS_WR_PROTECT)) {
-			LOG_DBG("Disk WRITE Qd %d", (addr/BLOCK_SIZE));
+			LOG_DBG("Disk WRITE Qd %lld", (addr/BLOCK_SIZE));
 			thread_op = THREAD_OP_WRITE_QUEUED;  /* write_queued */
 			defered_wr_sz = size;
 			k_sem_give(&disk_wait_sem);
@@ -924,7 +924,7 @@ static void mass_thread_main(int arg1, int unused)
 		case THREAD_OP_READ_QUEUED:
 			if (disk_access_read(disk_pdrv,
 						page, (addr/BLOCK_SIZE), 1)) {
-				LOG_ERR("!! Disk Read Error %d !",
+				LOG_ERR("!! Disk Read Error %lld !",
 					addr/BLOCK_SIZE);
 			}
 
@@ -933,7 +933,7 @@ static void mass_thread_main(int arg1, int unused)
 		case THREAD_OP_WRITE_QUEUED:
 			if (disk_access_write(disk_pdrv,
 						page, (addr/BLOCK_SIZE), 1)) {
-				LOG_ERR("!!!!! Disk Write Error %d !!!!!",
+				LOG_ERR("!!!!! Disk Write Error %lld !!!!!",
 					addr/BLOCK_SIZE);
 			}
 			thread_memory_write_done();
@@ -988,7 +988,7 @@ static int mass_storage_init(const struct device *dev)
 
 	LOG_INF("Sect Count %d", block_count);
 	memory_size = ((uint64_t)block_count) * BLOCK_SIZE;
-	LOG_INF("Memory Size %d", memory_size);
+	LOG_INF("Memory Size %lld", memory_size);
 
 	msd_state_machine_reset();
 	msd_init();
