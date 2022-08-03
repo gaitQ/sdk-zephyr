@@ -15,6 +15,7 @@
 
 #include <zephyr/types.h>
 #include <device.h>
+#include <drivers/spi.h>
 
 /**
  * @brief SPI Emulation Interface
