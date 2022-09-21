@@ -129,6 +129,16 @@ config FS_FATFS_MAX_SS
 	range 512 4096
 	default 512
 
+config FS_FATFS_REENTRANT
+	bool "Enable reentrancy (thread safety)"
+	help
+	  This option translates to _REENTRANT within ELM FAT file system
+	  driver; it enables reentrant (thread safe) support in the driver.
+
+config FS_FATFS_REENTRANT_TIMEOUT_MS
+	int "Reentrant mutex timeout in milliseconds"
+	default 5000
+
 endmenu
 
 endif # FAT_FILESYSTEM_ELM
