@@ -252,6 +252,10 @@ config FS_FATFS_MULTI_PARTITION
 	  physical drive number and only an FAT volume found on the physical drive
 	  will be mounted.
 
+config FS_FATFS_REENTRANT_TIMEOUT_MS
+	int "Reentrant mutex timeout in milliseconds"
+	default 5000
+
 endmenu
 
 endif # FAT_FILESYSTEM_ELM
