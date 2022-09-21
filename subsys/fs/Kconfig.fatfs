@@ -229,6 +229,10 @@ config FS_FATFS_REENTRANT
 	  access for each volume. Will create a zephyr mutex object for each
 	  FatFs volume and a FatFs system mutex.
 
+config FS_FATFS_REENTRANT_TIMEOUT_MS
+	int "Reentrant mutex timeout in milliseconds"
+	default 5000
+
 endmenu
 
 endif # FAT_FILESYSTEM_ELM
