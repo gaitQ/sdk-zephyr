@@ -154,6 +154,15 @@ config FS_FATFS_WINDOW_ALIGNMENT
 	  buffer is internal element of FATFS structure, which means
 	  that, in worst scenario, value provided here may cause FATFS
 	  structure to have size of twice the value
+config FS_FATFS_REENTRANT
+	bool "Enable reentrancy (thread safety)"
+	help
+	  This option translates to _REENTRANT within ELM FAT file system
+	  driver; it enables reentrant (thread safe) support in the driver.
+
+config FS_FATFS_REENTRANT_TIMEOUT_MS
+	int "Reentrant mutex timeout in milliseconds"
+	default 5000
 
 endmenu
 
