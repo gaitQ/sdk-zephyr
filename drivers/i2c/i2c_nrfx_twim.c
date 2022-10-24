@@ -287,8 +287,10 @@ static int i2c_nrfx_twim_recover_bus(const struct device *dev)
 
 	/* restore peripheral if it was active before */
 	if (state == PM_DEVICE_STATE_ACTIVE) {
+#ifdef CONFIG_PINCTRL
 		(void)pinctrl_apply_state(dev_config->pcfg,
 					  PINCTRL_STATE_DEFAULT);
+#endif
 		nrfx_twim_enable(&dev_config->twim);
 	}
 
