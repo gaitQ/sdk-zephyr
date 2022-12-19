@@ -25,6 +25,8 @@ LOG_MODULE_DECLARE(net_zperf, CONFIG_NET_ZPERF_LOG_LEVEL);
 static struct sockaddr_in6 *in6_addr_my;
 static struct sockaddr_in *in4_addr_my;
 
+static bool init_done;
+
 #if defined(CONFIG_NET_TC_THREAD_COOPERATIVE)
 #define TCP_RECEIVER_THREAD_PRIORITY K_PRIO_COOP(8)
 #else
