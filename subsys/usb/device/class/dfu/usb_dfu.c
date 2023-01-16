@@ -53,6 +53,9 @@
 #include <usb_descriptor.h>
 #include <usb_work_q.h>
 
+#include <bootutil/image.h>
+#include "bootutil/boot_hooks.h"
+
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(usb_dfu, CONFIG_USB_DEVICE_LOG_LEVEL);
 
@@ -365,7 +368,7 @@ static void dfu_reset_counters(void)
 {
 	dfu_data.bytes_sent = 0U;
 	dfu_data.block_nr = 0U;
-	if (flash_img_init(&dfu_data.ctx)) {
+	if (flash_img_init_id(&dfu_data.ctx, dfu_data.flash_area_id)) {
 		LOG_ERR("flash img init error");
 		dfu_data.state = dfuERROR;
 		dfu_data.status = errUNKNOWN;
@@ -389,7 +392,16 @@ static void dfu_flash_write(uint8_t *data, size_t len)
 		const bool should_confirm = IS_ENABLED(CONFIG_USB_DFU_PERMANENT_DOWNLOAD);
 
 		LOG_DBG("flash write done");
+
+#ifdef CONFIG_USB_DFU_MULTI_IMAGE
+		dfu_data.state = dfuDNBUSY;
+		dfu_data_worker.worker_state = dfuDNLOAD_SYNC;
+		dfu_data_worker.worker_len  = 0;
+		k_work_submit_to_queue(&USB_WORK_Q, &dfu_work);
+#else
 		dfu_data.state = dfuMANIFEST_SYNC;
+#endif
+
 		dfu_reset_counters();
 
 		LOG_DBG("Should confirm: %d", should_confirm);
@@ -398,7 +410,9 @@ static void dfu_flash_write(uint8_t *data, size_t len)
 			dfu_data.status = errWRITE;
 		}
 
+#ifndef CONFIG_USB_DFU_MULTI_IMAGE
 		k_poll_signal_raise(&dfu_signal, 0);
+#endif
 	} else {
 		dfu_data.state = dfuDNLOAD_IDLE;
 	}
@@ -461,6 +475,41 @@ static void reboot_schedule(void)
 	k_work_schedule_for_queue(&USB_WORK_Q, &reboot_work, K_MSEC(500));
 }
 #endif
+
+#ifdef CONFIG_USB_DFU_MULTI_IMAGE
+static struct k_work netcore_update_work;
+
+static void netcore_update_work_handler(struct k_work *item) {
+	ARG_UNUSED(item);
+	int ret;
+
+	const struct flash_area *fa;
+	if (dfu_data.flash_area_id == FIXED_PARTITION_ID(SLOT1_PARTITION)) {
+		if (flash_area_open(dfu_data.flash_area_id, &fa)) {
+			goto out;
+		}
+
+		ret = BOOT_HOOK_CALL(boot_copy_region_post_hook, 0, dfu_data.flash_area_id, fa,
+							dfu_data.flash_upload_size);
+
+		flash_area_close(fa);
+
+		if (ret) {
+			LOG_ERR("Error %d post upload hook", ret);
+			dfu_data.status = errPROG;
+		}
+	}
+
+out:
+	dfu_data.state = dfuMANIFEST_SYNC;
+}
+
+static void update_netcore_schedule(void) {
+	LOG_INF("Scheduling netcore update");
+	k_work_submit(&netcore_update_work);
+}
+#endif
+
 
 static int dfu_class_handle_to_host(struct usb_setup_packet *setup,
 				    int32_t *data_len, uint8_t **data)
@@ -648,12 +697,14 @@ static int dfu_class_handle_to_device(struct usb_setup_packet *setup,
 			dfu_reset_counters();
 			k_poll_signal_reset(&dfu_signal);
 
+#ifndef CONFIG_USB_DFU_MULTI_IMAGE
 			if (dfu_data.flash_area_id != DOWNLOAD_FLASH_AREA_ID) {
 				dfu_data.status = errWRITE;
 				dfu_data.state = dfuERROR;
 				LOG_ERR("This area can not be overwritten");
 				break;
 			}
+#endif
 
 			dfu_data.state = dfuDNBUSY;
 			dfu_data_worker.worker_state = dfuIDLE;
@@ -886,7 +937,7 @@ static void dfu_work_handler(struct k_work *item)
  * image collection, so not erase whole bank at DFU beginning
  */
 #ifndef CONFIG_IMG_ERASE_PROGRESSIVELY
-		if (boot_erase_img_bank(DOWNLOAD_FLASH_AREA_ID)) {
+		if (boot_erase_img_bank(dfu_data.flash_area_id)) {
 			dfu_data.state = dfuERROR;
 			dfu_data.status = errERASE;
 			break;
@@ -896,6 +947,16 @@ static void dfu_work_handler(struct k_work *item)
 		dfu_flash_write(dfu_data_worker.buf,
 				dfu_data_worker.worker_len);
 		break;
+#ifdef CONFIG_USB_DFU_MULTI_IMAGE
+	case dfuDNLOAD_SYNC:
+		if (dfu_data.flash_area_id == FIXED_PARTITION_ID(SLOT1_PARTITION)) {
+			update_netcore_schedule();
+		} else {
+			dfu_data.state = dfuMANIFEST_SYNC;
+			k_poll_signal_raise(&dfu_signal, 0);
+		}
+		break;
+#endif
 	default:
 		LOG_ERR("OUT of state machine");
 		break;
@@ -913,6 +974,10 @@ static int usb_dfu_init(void)
 
 #ifdef CONFIG_USB_DFU_REBOOT
 	k_work_init_delayable(&reboot_work, reboot_work_handler);
+#endif
+
+#if CONFIG_USB_DFU_MULTI_IMAGE
+	k_work_init(&netcore_update_work, netcore_update_work_handler);
 #endif
 
 	if (flash_area_open(dfu_data.flash_area_id, &fa)) {
