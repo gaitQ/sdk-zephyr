@@ -47,6 +47,7 @@ def main():
         # replace=False creates a merged configuration
         print(kconf.load_config(config, replace=False))
 
+    has_warning = False
     if args.handwritten_input_configs:
         # Check that there are no assignments to promptless symbols, which
         # have no effect.
@@ -59,8 +60,8 @@ def main():
         # Print warnings for symbols that didn't get the assigned value. Only
         # do this for handwritten input too, to avoid likely unhelpful warnings
         # when using an old configuration and updating Kconfig files.
-        check_assigned_sym_values(kconf)
-        check_assigned_choice_values(kconf)
+        has_warning = check_assigned_sym_values(kconf)
+        has_warning = check_assigned_choice_values(kconf) or has_warning
 
     if kconf.syms['WARN_DEPRECATED'].tri_value == 2:
         check_deprecated(kconf)
@@ -96,6 +97,10 @@ def main():
     # Write the list of parsed Kconfig files to a file
     write_kconfig_filenames(kconf, args.kconfig_list_out)
 
+    # We want warnings to abort the build
+    if has_warning:
+        err("Aborting due to assigned value check warnings")
+
 
 def check_no_promptless_assign(kconf):
     # Checks that no promptless symbols are assigned
@@ -112,6 +117,8 @@ def check_assigned_sym_values(kconf):
     # Verifies that the values assigned to symbols "took" (matches the value
     # the symbols actually got), printing warnings otherwise. Choice symbols
     # are checked separately, in check_assigned_choice_values().
+
+    has_warning = False
 
     for sym in kconf.unique_defined_syms:
         if sym.choice:
@@ -148,6 +155,9 @@ def check_assigned_sym_values(kconf):
                     ", ".join(expr_strs) + ". "
 
             warn(msg + SYM_INFO_HINT.format(sym))
+            has_warning = True
+
+    return has_warning
 
 
 def missing_deps(sym):
@@ -188,6 +198,8 @@ def check_assigned_choice_values(kconf):
     # Without special-casing choices, we'd detect that the first symbol set to
     # y ended up as n, and print a spurious warning.
 
+    has_warning = False
+
     for choice in kconf.unique_choices:
         if choice.user_selection and \
            choice.user_selection is not choice.selection:
@@ -196,6 +208,8 @@ def check_assigned_choice_values(kconf):
 The choice symbol {choice.user_selection.name_and_loc} was selected (set =y),
 but {choice.selection.name_and_loc if choice.selection else "no symbol"} ended
 up as the choice selection. """ + SYM_INFO_HINT.format(choice.user_selection))
+            has_warning = True
+    return has_warning
 
 
 # Hint on where to find symbol information. Used like
