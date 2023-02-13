@@ -217,6 +217,14 @@ config BT_CTLR_ISO_RX_BUFFERS
 	  that the theoretical maximum. Default of 8 is for supporting
 	  two groups of 4 payloads, e.g. 2 CIGs with 2 CISes of BN=2.
 
+config BT_CTLR_ISO_RX_BUFFER_SIZE
+	int "Isochronous Rx buffer size"
+	depends on BT_CTLR_SYNC_ISO || BT_CTLR_CONN_ISO
+	range 1 4095
+	default 1
+	help
+	  Size of the Isochronous Rx buffers
+
 config BT_CTLR_ISO_TX_BUFFERS
 	int "Number of Isochronous Tx buffers"
 	depends on BT_CTLR_ADV_ISO || BT_CTLR_CONN_ISO

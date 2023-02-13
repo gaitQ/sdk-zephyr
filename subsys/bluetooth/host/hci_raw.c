@@ -46,10 +46,10 @@ NET_BUF_POOL_FIXED_DEFINE(hci_cmd_pool, CONFIG_BT_BUF_CMD_TX_COUNT,
 			  BT_BUF_CMD_SIZE(CONFIG_BT_BUF_CMD_TX_SIZE), 8, NULL);
 NET_BUF_POOL_FIXED_DEFINE(hci_acl_pool, CONFIG_BT_BUF_ACL_TX_COUNT,
 			  BT_BUF_ACL_SIZE(CONFIG_BT_BUF_ACL_TX_SIZE), 8, NULL);
-#if defined(CONFIG_BT_ISO)
-NET_BUF_POOL_FIXED_DEFINE(hci_iso_pool, CONFIG_BT_ISO_TX_BUF_COUNT,
-			  BT_ISO_SDU_BUF_SIZE(CONFIG_BT_ISO_TX_MTU), 8, NULL);
-#endif /* CONFIG_BT_ISO */
+#if defined(CONFIG_BT_CTLR_ISO)
+NET_BUF_POOL_FIXED_DEFINE(hci_iso_pool, CONFIG_BT_CTLR_ISO_TX_BUFFERS,
+			  BT_ISO_SDU_BUF_SIZE(CONFIG_BT_CTLR_ISO_TX_BUFFER_SIZE), 8, NULL);
+#endif /* CONFIG_BT_CTLR_ISO */
 
 struct bt_dev_raw bt_dev;
 struct bt_hci_raw_cmd_ext *cmd_ext;
@@ -113,11 +113,11 @@ struct net_buf *bt_buf_get_tx(enum bt_buf_type type, k_timeout_t timeout,
 	case BT_BUF_ACL_OUT:
 		pool = &hci_acl_pool;
 		break;
-#if defined(CONFIG_BT_ISO)
+#if defined(CONFIG_BT_CTLR_ISO)
 	case BT_BUF_ISO_OUT:
 		pool = &hci_iso_pool;
 		break;
-#endif /* CONFIG_BT_ISO */
+#endif /* CONFIG_BT_CTLR_ISO */
 	case BT_BUF_H4:
 		if (IS_ENABLED(CONFIG_BT_HCI_RAW_H4) &&
 		    raw_mode == BT_HCI_RAW_MODE_H4) {
@@ -130,12 +130,12 @@ struct net_buf *bt_buf_get_tx(enum bt_buf_type type, k_timeout_t timeout,
 				type = BT_BUF_ACL_OUT;
 				pool = &hci_acl_pool;
 				break;
-#if defined(CONFIG_BT_ISO)
+#if defined(CONFIG_BT_CTLR_ISO)
 			case H4_ISO:
 				type = BT_BUF_ISO_OUT;
 				pool = &hci_iso_pool;
 				break;
-#endif /* CONFIG_BT_ISO */
+#endif /* CONFIG_BT_CTLR_ISO */
 			default:
 				LOG_ERR("Unknown H4 type %u", type);
 				return NULL;
@@ -198,7 +198,7 @@ int bt_recv(struct net_buf *buf)
 			net_buf_push_u8(buf, H4_ACL);
 			break;
 		case BT_BUF_ISO_IN:
-			if (IS_ENABLED(CONFIG_BT_ISO)) {
+			if (IS_ENABLED(CONFIG_BT_CTLR_ISO)) {
 				net_buf_push_u8(buf, H4_ISO);
 				break;
 			}
