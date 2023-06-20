@@ -7,4 +7,34 @@ description: |
 
 compatible: "maxim,max17048"
 
+properties:
+  alrt-gpios:
+    type: phandle-array
+    required: true
+    description: Alert irq pin
+
+  rcomp:
+    type: int
+    required: false
+    default: 0x97
+    description: Optimizer for different batteries or environment temperatures
+
+  empty-alert-threshold:
+    type: int
+    required: false
+    default: 4
+    description: Battery empty threshold in percent
+
+  max-mvolt:
+    type: int
+    required: false
+    default: 5100
+    description: Max Battery Voltage alert in mV
+
+  min-mvolt:
+    type: int
+    required: false
+    default: 0
+    description: Min Battery Voltage alert in mV
+
 include: [i2c-device.yaml, fuel-gauge.yaml]
