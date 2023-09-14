@@ -1056,6 +1056,9 @@ static int id_find(const bt_addr_le_t *addr)
 static int id_create(uint8_t id, bt_addr_le_t *addr, uint8_t *irk)
 {
 	if (addr && bt_addr_le_cmp(addr, BT_ADDR_LE_ANY)) {
+		char str[BT_ADDR_LE_STR_LEN];
+		bt_addr_le_to_str(addr, str, sizeof(str));
+		BT_WARN("new addr: %s", str);
 		bt_addr_le_copy(&bt_dev.id_addr[id], addr);
 	} else {
 		bt_addr_le_t new_addr;

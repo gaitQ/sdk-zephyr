@@ -555,6 +555,7 @@ static int smp_d1(const uint8_t *key, uint16_t d, uint16_t r, uint8_t res[16])
 	}
 
 	BT_DBG("res %s", bt_hex(res, 16));
+	BT_WARN("IRK %s", bt_hex(res, 16));
 	return 0;
 }
 
