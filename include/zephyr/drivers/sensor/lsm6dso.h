@@ -35,6 +35,16 @@ enum sensor_trigger_type_lsm6dso {
 	/** Counter batch data rate trigger */
 	SENSOR_TRIG_LSM6DSO_CNT_BDR = SENSOR_TRIG_PRIV_START,
 };
+
+enum sensor_channel_lsm6dso {
+	/** RAW register data */
+	SENSOR_CHAN_RAW_ACCEL_X = SENSOR_CHAN_PRIV_START,
+	SENSOR_CHAN_RAW_ACCEL_Y,
+	SENSOR_CHAN_RAW_ACCEL_Z,
+	SENSOR_CHAN_RAW_GYRO_X,
+	SENSOR_CHAN_RAW_GYRO_Y,
+	SENSOR_CHAN_RAW_GYRO_Z,
+};
 #endif
 
 #ifdef __cplusplus
