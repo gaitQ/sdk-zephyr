@@ -153,6 +153,12 @@ properties:
     description: |
       Enable FIFO buffer
 
+  raw-readings-en:
+    type: boolean
+    description: |
+      Send out raw register values of the readings instead of converted unit values.
+      Only relevant if FIFO mode active
+
   accel-bdr:
     type: int
     required: false
