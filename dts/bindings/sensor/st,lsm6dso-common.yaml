@@ -156,8 +156,14 @@ properties:
   raw-readings-en:
     type: boolean
     description: |
-      Send out raw register values of the readings instead of converted unit values.
-      Only relevant if FIFO mode active
+      Enable support for raw register values in FIFO mode.
+      Ignored if FIFO mode deactivated.
+
+  unit-readings-en:
+    type: boolean
+    description: |
+      Enable support for unit converted values in FIFO mode.
+      Ignored if FIFO mode deactivated.
 
   accel-bdr:
     type: int
