@@ -14,6 +14,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/init.h>
+#include <zephyr/sys/byteorder.h>
 #include <string.h>
 #include <zephyr/sys/__assert.h>
 #include <zephyr/logging/log.h>
@@ -823,7 +824,7 @@ static int lsm6dso_read(const struct device *dev,
 
 	if (cfg->fifo_active) {
 		stmdev_ctx_t *ctx = (stmdev_ctx_t *)&cfg->ctx;
-		uint8_t fifo_buf[6];
+		uint8_t fifo_buf[12];
 		uint16_t num_data_fifo;
 		lsm6dso_fifo_tag_t data_tag;
 		int cur_buf_element = 0;
@@ -843,9 +844,19 @@ static int lsm6dso_read(const struct device *dev,
 			}
 
 			if (data_tag == LSM6DSO_GYRO_NC_TAG) {
-				process_gyro_data(buf, &cur_buf_element, dev->data, cfg->raw_readings_en, fifo_buf);
+				if (cfg->raw_readings_en) {
+					process_gyro_data(buf, &cur_buf_element, dev->data, true, fifo_buf);
+				}
+				if (cfg->unit_readings_en) {
+					process_gyro_data(buf, &cur_buf_element, dev->data, false, fifo_buf);
+				}
 			} else if (data_tag == LSM6DSO_XL_NC_TAG) {
-				process_accel_data(buf, &cur_buf_element, dev->data, cfg->raw_readings_en, fifo_buf);
+				if (cfg->raw_readings_en) {
+					process_accel_data(buf, &cur_buf_element, dev->data, true, fifo_buf);
+				}
+				if (cfg->unit_readings_en) {
+					process_accel_data(buf, &cur_buf_element, dev->data, false, fifo_buf);
+				}
 			} else {
 				LOG_WRN("Unhandled data: tag=%d", data_tag);
 			}
@@ -1097,6 +1108,7 @@ static int lsm6dso_init(const struct device *dev)
 #define LSM6DSO_CFG_FIFO(inst)						\
 	.fifo_active = DT_INST_PROP(inst, fifo_active),			\
 	.raw_readings_en = DT_INST_PROP(inst, raw_readings_en),		\
+	.unit_readings_en = DT_INST_PROP(inst, unit_readings_en),	\
 	.batch_cnt_thr = DT_INST_PROP(inst, batch_cnt_thr),		\
 	.accel_bdr = DT_INST_PROP(inst, accel_bdr),			\
 	.gyro_bdr = DT_INST_PROP(inst, gyro_bdr),
