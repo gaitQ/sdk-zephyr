@@ -8,6 +8,7 @@
 
 #include <zephyr/drivers/i2c.h>
 #include <zephyr/drivers/sensor.h>
+#include <zephyr/drivers/sensor/icp10125.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/byteorder.h>
 
@@ -35,7 +36,7 @@ enum {
 struct icp10125_data {
 	uint16_t raw_ambient_temp;
 	uint32_t raw_press;
-	float sensor_constants[4];
+	int16_t sensor_constants[4];
 };
 
 struct icp10125_dev_config {
@@ -69,7 +70,7 @@ static const struct icp10125_cmd ambient_temp_measurement_cmds[] = {
  * (Section 5.2 MEASUREMENT COMMANDS in the Datasheet)
  */
 static const struct icp10125_cmd press_measurement_cmds[] = {
-	{{0x40, 0x1A}}, {{0x48, 0xA3}}, {{0x50, 0x59}}, {{0x59, 0xE0}}
+	{{0x40, 0x1A}}, {{0x48, 0xA3}}, {{0x50, 0x59}}, {{0x58, 0xE0}}
 };
 
 /* Request preparation for OTP data read. It should issue before data read request.
@@ -89,11 +90,6 @@ static const struct icp10125_cmd otp_read_request_cmd = {{0xC7, 0xF7}};
  * (Section 2.2 OPERATION MODES in the Datasheet)
  */
 static const uint32_t conv_time_max[] = {1800, 6300, 23800, 94500};
-
-/* The typical conversion time for each modes.
- * (Section 2.2 OPERATION MODES in the Datasheet)
- */
-static const uint32_t conv_time_typ[] = {1600, 5600, 20800, 83200};
 
 /* The Datasheet has no mention of the constants and formulas.
  * Instead, it shows only how to use it in the sample code.
@@ -154,7 +150,7 @@ static int icp10125_read_otp(const struct device *dev)
 
 	rc = i2c_write_dt(&cfg->i2c, (uint8_t *)&otp_read_setup, sizeof(otp_read_setup));
 	if (rc < 0) {
-		LOG_ERR("Failed to write otp_read_setup.\n");
+		LOG_ERR("Failed to write otp_read_setup.");
 		return rc;
 	}
 
@@ -162,13 +158,13 @@ static int icp10125_read_otp(const struct device *dev)
 		rc = i2c_write_dt(&cfg->i2c, (uint8_t *)&otp_read_request_cmd,
 				  sizeof(otp_read_request_cmd));
 		if (rc < 0) {
-			LOG_ERR("Failed to write otp_read_request.\n");
+			LOG_ERR("Failed to write otp_read_request.");
 			return rc;
 		}
 
 		rc = i2c_read_dt(&cfg->i2c, (uint8_t *)&sensor_data, sizeof(sensor_data));
 		if (rc < 0) {
-			LOG_ERR("Failed to read otp_read_request.\n");
+			LOG_ERR("Failed to read otp_read_request.");
 			return rc;
 		}
 
@@ -196,29 +192,26 @@ static int icp10125_measure(const struct i2c_dt_spec *i2c, const struct icp10125
 
 	rc = i2c_write_dt(i2c, (uint8_t *)&cmds[mode], sizeof(cmds[mode]));
 	if (rc < 0) {
-		LOG_ERR("Failed to start measurement.\n");
+		LOG_ERR("Failed to start measurement.");
 		return rc;
 	}
 
 	/* Wait for the sensor to become readable.
-	 * First wait for the typical time and then read.
-	 * If that fails, wait until the time to surely became readable.
+	 * Always wait until the time for the reading to surely be available.
 	 */
-	k_sleep(K_USEC(conv_time_typ[mode]));
-	if (i2c_read_dt(i2c, (uint8_t *)sensor_data, sizeof(sensor_data[0]) * data_num) < 0) {
-		k_sleep(K_USEC(conv_time_max[mode] - conv_time_typ[mode]));
-		rc = i2c_read_dt(i2c, (uint8_t *)sensor_data, sizeof(sensor_data[0]) * data_num);
-		if (rc < 0) {
-			LOG_ERR("Failed to read measurement.\n");
-			return rc;
-		}
+	k_sleep(K_USEC(conv_time_max[mode]));
+	rc = i2c_read_dt(i2c, (uint8_t *)sensor_data, sizeof(sensor_data[0]) * data_num);
+	if (rc < 0) {
+		LOG_ERR("Failed to read measurement.");
+		return rc;
 	}
 
 #ifdef CONFIG_ICP10125_CHECK_CRC
 	/* Calculate CRC from Chapter 5 Section 8 of ICP10125 Product manuals. */
 	for (size_t i = 0; i < data_num; i++) {
-		if (!icp10125_check_crc(sensor_data[i].data, SENSOR_DATA_SIZE)) {
-			LOG_ERR("Sensor data has invalid CRC.\n");
+		if (icp10125_check_crc(sensor_data[i].data, SENSOR_DATA_SIZE) !=
+		    sensor_data[i].crc) {
+			LOG_ERR("Sensor data has invalid CRC.");
 			return -EIO;
 		}
 	}
@@ -281,12 +274,36 @@ static int icp10125_channel_get(const struct device *dev, enum sensor_channel ch
 {
 	struct icp10125_data *data = dev->data;
 
-	if (chan == SENSOR_CHAN_AMBIENT_TEMP) {
-		icp10125_convert_ambient_temp_value(data, val);
-	} else if (chan == SENSOR_CHAN_PRESS) {
-		icp10125_convert_press_value(data, val);
+	if (chan < SENSOR_CHAN_PRIV_START) {
+		switch (chan) {
+		case SENSOR_CHAN_AMBIENT_TEMP:
+			icp10125_convert_ambient_temp_value(data, val);
+			break;
+		case SENSOR_CHAN_PRESS:
+			icp10125_convert_press_value(data, val);
+			break;
+		default:
+			return -ENOTSUP;
+		}
 	} else {
-		return -ENOTSUP;
+		switch ((enum sensor_channel_icp10125)chan) {
+		case SENSOR_CHAN_RAW_AMBIENT_TEMP:
+			val->val1 = data->raw_ambient_temp;
+			break;
+		case SENSOR_CHAN_RAW_PRESS:
+			val->val1 = data->raw_press;
+			break;
+		case SENSOR_CHAN_OTP_VAL1:
+			val->val1 = data->sensor_constants[0];
+			val->val2 = data->sensor_constants[1];
+			break;
+		case SENSOR_CHAN_OTP_VAL2:
+			val->val1 = data->sensor_constants[2];
+			val->val2 = data->sensor_constants[3];
+			break;
+		default:
+			return -ENOTSUP;
+		}
 	}
 
 	return 0;
