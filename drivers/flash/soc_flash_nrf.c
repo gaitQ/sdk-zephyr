@@ -71,7 +71,7 @@ static const struct flash_parameters flash_nrf_parameters = {
 /* semaphore for locking flash resources (tickers) */
 static struct k_sem sem_lock;
 #define SYNC_INIT() k_sem_init(&sem_lock, 1, 1)
-#define SYNC_LOCK() k_sem_take(&sem_lock, K_FOREVER)
+#define SYNC_LOCK() (k_is_in_isr() ? k_sem_take(&sem_lock, K_NO_WAIT) : k_sem_take(&sem_lock, K_FOREVER))
 #define SYNC_UNLOCK() k_sem_give(&sem_lock)
 #else
 #define SYNC_INIT()
