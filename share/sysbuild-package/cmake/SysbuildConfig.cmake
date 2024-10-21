@@ -1,5 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
+if(DEFINED ENV{SYSBUILD_EXTRA_COMPONENT})
+  include($ENV{SYSBUILD_EXTRA_COMPONENT}/sysbuild/ZephyrConfig.cmake)
+endif()
+
 if(Sysbuild_FIND_COMPONENTS)
   set(Zephyr_FIND_COMPONENTS ${Sysbuild_FIND_COMPONENTS})
 else()
