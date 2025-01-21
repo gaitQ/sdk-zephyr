@@ -109,6 +109,15 @@ DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void *buff)
 		}
 		break;
 
+#if defined(CONFIG_FS_FATFS_TRIM)
+	case CTRL_TRIM:
+		if (disk_access_ioctl(pdrv_str[pdrv],
+				DISK_IOCTL_CTRL_TRIM, buff) != 0) {
+			ret = RES_ERROR;
+		}
+		break;
+#endif
+
 	default:
 		ret = RES_PARERR;
 		break;
