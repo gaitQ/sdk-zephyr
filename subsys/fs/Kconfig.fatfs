@@ -256,6 +256,13 @@ config FS_FATFS_REENTRANT_TIMEOUT_MS
 	int "Reentrant mutex timeout in milliseconds"
 	default 5000
 
+config FS_FATFS_TRIM
+	bool "Enable fat trim functionality"
+	help
+	  Inform device that the data on the block of sectors is no longer used.
+	  This option affects FF_USE_TRIM defined in ffconf.h, inside
+	  ELM FAT module.
+
 endmenu
 
 endif # FAT_FILESYSTEM_ELM

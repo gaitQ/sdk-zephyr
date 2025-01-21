@@ -67,6 +67,8 @@ extern "C" {
  * requested, but this operation is inherently unsafe.
  */
 #define DISK_IOCTL_CTRL_DEINIT			7
+/** Inform device that the data on the block of sectors is no longer used */
+#define DISK_IOCTL_CTRL_TRIM			8
 
 /**
  * @brief Possible return bitmasks for disk_status()
