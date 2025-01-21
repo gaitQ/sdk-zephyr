@@ -71,6 +71,11 @@
 #define FF_FS_TIMEOUT		K_MSEC(CONFIG_FS_FATFS_REENTRANT_TIMEOUT_MS)
 #endif /* defined(CONFIG_FS_FATFS_REENTRANT) */
 
+#if defined(CONFIG_FS_FATFS_TRIM)
+#undef FF_USE_TRIM
+#define FF_USE_TRIM	CONFIG_FS_FATFS_TRIM
+#endif /* defined(CONFIG_FS_FATFS_TRIM) */
+
 /*
  * These options are override from default values, but have no Kconfig
  * options.

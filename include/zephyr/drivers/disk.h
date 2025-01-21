@@ -47,6 +47,8 @@ extern "C" {
 #define DISK_IOCTL_GET_ERASE_BLOCK_SZ		4
 /** Commit any cached read/writes to disk */
 #define DISK_IOCTL_CTRL_SYNC			5
+/** Inform device that the data on the block of sectors is no longer used */
+#define DISK_IOCTL_CTRL_TRIM			6
 
 /**
  * @brief Possible return bitmasks for disk_status()
